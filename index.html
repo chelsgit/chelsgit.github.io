@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>牙醫診所排班系統 - 2026年1月</title>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- SheetJS for Excel export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root {
             --primary: #2563eb;
@@ -81,6 +83,7 @@
             padding: 8px;
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            flex-wrap: wrap;
         }
 
         .tab {
@@ -177,6 +180,15 @@
             box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
         }
 
+        .btn-warning {
+            background: var(--warning);
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #b45309;
+        }
+
         .btn-danger {
             background: var(--danger);
             color: white;
@@ -210,7 +222,7 @@
         /* Employee List */
         .employee-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             gap: 16px;
         }
 
@@ -264,6 +276,7 @@
             display: flex;
             gap: 8px;
             flex-shrink: 0;
+            flex-wrap: wrap;
         }
 
         /* Form Elements */
@@ -607,6 +620,10 @@
             transform: translateY(0);
         }
 
+        .modal.modal-lg {
+            max-width: 900px;
+        }
+
         .modal-header {
             display: flex;
             justify-content: space-between;
@@ -811,6 +828,83 @@
             to { transform: rotate(360deg); }
         }
 
+        /* Personal Schedule Table */
+        .personal-schedule-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+
+        .personal-schedule-table th,
+        .personal-schedule-table td {
+            padding: 12px;
+            text-align: center;
+            border: 1px solid var(--gray-200);
+        }
+
+        .personal-schedule-table th {
+            background: var(--gray-100);
+            font-weight: 600;
+        }
+
+        .personal-schedule-table tr:nth-child(even) {
+            background: var(--gray-50);
+        }
+
+        .personal-schedule-table .work-day {
+            background: var(--success-light);
+        }
+
+        .personal-schedule-table .off-day {
+            background: var(--gray-100);
+            color: var(--gray-400);
+        }
+
+        .role-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .role-badge.counter {
+            background: var(--counter-light);
+            color: var(--counter);
+        }
+
+        .role-badge.follow {
+            background: var(--follow-light);
+            color: var(--follow);
+        }
+
+        /* Personal Stats */
+        .personal-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .personal-stat-item {
+            text-align: center;
+            padding: 16px;
+            background: var(--gray-50);
+            border-radius: 10px;
+        }
+
+        .personal-stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .personal-stat-label {
+            font-size: 12px;
+            color: var(--gray-500);
+            margin-top: 4px;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .container {
@@ -842,6 +936,10 @@
             .btn-lg {
                 width: 100%;
                 justify-content: center;
+            }
+
+            .employee-actions {
+                flex-direction: column;
             }
         }
 
@@ -877,6 +975,7 @@
             <button class="tab active" onclick="switchTab('schedule')">📅 排班表</button>
             <button class="tab" onclick="switchTab('employees')">👥 員工管理</button>
             <button class="tab" onclick="switchTab('leave')">🏖️ 請假設定</button>
+            <button class="tab" onclick="switchTab('personal')">👤 個人班表</button>
             <button class="tab" onclick="switchTab('stats')">📊 統計報表</button>
         </div>
 
@@ -888,6 +987,9 @@
                     <div class="action-bar">
                         <button class="btn btn-success btn-lg" onclick="autoSchedule()">
                             ⚡ 一鍵智能排班
+                        </button>
+                        <button class="btn btn-primary" onclick="exportToExcel()">
+                            📥 匯出Excel
                         </button>
                         <button class="btn btn-outline" onclick="clearSchedule()">
                             🗑️ 清除班表
@@ -934,6 +1036,9 @@
                         ➕ 新增員工
                     </button>
                 </div>
+                <p style="color: var(--gray-500); font-size: 14px; margin-bottom: 16px;">
+                    💡 可設定員工預設職位（櫃檯/跟診可複選），智能排班時會優先依照預設職位分配
+                </p>
                 <div class="employee-grid" id="employee-list">
                     <!-- Generated by JS -->
                 </div>
@@ -959,6 +1064,26 @@
                     <!-- Generated by JS -->
                 </div>
                 <div id="leave-summary" style="margin-top: 20px; padding: 16px; background: var(--gray-50); border-radius: 8px;">
+                    <!-- Generated by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Personal Schedule Panel -->
+        <div id="panel-personal" class="panel">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">👤 個人班表檢視</div>
+                    <div class="action-bar">
+                        <select class="form-input" style="width: auto; min-width: 150px;" id="personal-employee-select" onchange="renderPersonalSchedule()">
+                            <!-- Generated by JS -->
+                        </select>
+                        <button class="btn btn-primary" onclick="exportPersonalExcel()">
+                            📥 匯出個人班表
+                        </button>
+                    </div>
+                </div>
+                <div id="personal-schedule-content">
                     <!-- Generated by JS -->
                 </div>
             </div>
@@ -990,7 +1115,12 @@
             <div class="card">
                 <div class="card-header">
                     <div class="card-title">員工診數統計</div>
-                    <span style="color: var(--gray-500); font-size: 14px;">目標：每人 42 診</span>
+                    <div class="action-bar">
+                        <span style="color: var(--gray-500); font-size: 14px;">目標：每人 42 診</span>
+                        <button class="btn btn-primary" onclick="exportStatsExcel()">
+                            📥 匯出統計報表
+                        </button>
+                    </div>
                 </div>
                 <div class="stats-grid" id="stats-grid">
                     <!-- Generated by JS -->
@@ -1009,6 +1139,24 @@
             <div class="form-group">
                 <label class="form-label">員工姓名</label>
                 <input type="text" class="form-input" id="employee-name-input" placeholder="請輸入姓名">
+            </div>
+            <div class="form-group">
+                <label class="form-label">預設職位（可複選）</label>
+                <p style="font-size: 12px; color: var(--gray-500); margin-bottom: 10px;">
+                    智能排班時會優先將員工分配到預設職位
+                </p>
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                    <label id="role-counter-label" style="display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-radius: 10px; cursor: pointer; border: 2px solid var(--gray-200); background: var(--gray-50); transition: all 0.2s;">
+                        <input type="checkbox" id="role-counter-input" onchange="updateRoleCheckboxStyle()">
+                        <span style="width: 24px; height: 24px; border-radius: 6px; background: var(--counter); color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">櫃</span>
+                        <span style="font-weight: 500;">櫃檯班</span>
+                    </label>
+                    <label id="role-follow-label" style="display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-radius: 10px; cursor: pointer; border: 2px solid var(--gray-200); background: var(--gray-50); transition: all 0.2s;">
+                        <input type="checkbox" id="role-follow-input" onchange="updateRoleCheckboxStyle()">
+                        <span style="width: 24px; height: 24px; border-radius: 6px; background: var(--follow); color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">診</span>
+                        <span style="font-weight: 500;">跟診班</span>
+                    </label>
+                </div>
             </div>
             <input type="hidden" id="employee-edit-id">
             <div class="modal-footer">
@@ -1044,13 +1192,14 @@
 
     <script>
         // ===== DATA =====
+        // roles: { counter: true/false, follow: true/false } 預設職位
         let employees = [
-            { id: 1, name: '王小美' },
-            { id: 2, name: '林佳玲' },
-            { id: 3, name: '陳雅婷' },
-            { id: 4, name: '張惠君' },
-            { id: 5, name: '李美玲' },
-            { id: 6, name: '黃淑芬' }
+            { id: 1, name: '王小美', roles: { counter: true, follow: false } },
+            { id: 2, name: '林佳玲', roles: { counter: true, follow: true } },
+            { id: 3, name: '陳雅婷', roles: { counter: false, follow: true } },
+            { id: 4, name: '張惠君', roles: { counter: false, follow: true } },
+            { id: 5, name: '李美玲', roles: { counter: false, follow: true } },
+            { id: 6, name: '黃淑芬', roles: { counter: true, follow: true } }
         ];
 
         let leaves = {}; // { 員工ID: [日期陣列] }
@@ -1124,6 +1273,14 @@
             document.getElementById('loading-overlay').classList.remove('active');
         }
 
+        function getRoleDisplay(emp) {
+            const roles = emp.roles || { counter: false, follow: false };
+            if (roles.counter && roles.follow) return '櫃檯 + 跟診';
+            if (roles.counter) return '櫃檯';
+            if (roles.follow) return '跟診';
+            return '未設定';
+        }
+
         // ===== EMPLOYEE MANAGEMENT =====
         function renderEmployeeList() {
             const container = document.getElementById('employee-list');
@@ -1131,6 +1288,18 @@
                 const sessionCount = countEmployeeSessions(emp.id);
                 const statusText = sessionCount >= TARGET_SESSIONS ? '✓ 已達標' : `差 ${TARGET_SESSIONS - sessionCount} 診`;
                 const statusColor = sessionCount >= TARGET_SESSIONS ? 'var(--success)' : 'var(--danger)';
+                const roles = emp.roles || { counter: false, follow: false };
+                
+                let roleTags = '';
+                if (roles.counter) {
+                    roleTags += '<span style="display:inline-block;padding:3px 8px;border-radius:10px;font-size:11px;background:var(--counter-light);color:var(--counter);border:1px solid var(--counter);margin-right:4px;">櫃檯</span>';
+                }
+                if (roles.follow) {
+                    roleTags += '<span style="display:inline-block;padding:3px 8px;border-radius:10px;font-size:11px;background:var(--follow-light);color:var(--follow);border:1px solid var(--follow);">跟診</span>';
+                }
+                if (!roles.counter && !roles.follow) {
+                    roleTags = '<span style="display:inline-block;padding:3px 8px;border-radius:10px;font-size:11px;background:var(--gray-100);color:var(--gray-500);border:1px solid var(--gray-300);">未設定</span>';
+                }
                 
                 return `
                     <div class="employee-card">
@@ -1141,8 +1310,12 @@
                                 已排 <strong>${sessionCount}</strong> 診 / 目標 ${TARGET_SESSIONS} 診
                                 <span style="color: ${statusColor}; margin-left: 8px;">${statusText}</span>
                             </div>
+                            <div style="margin-top:6px;">
+                                <span style="font-size:11px;color:var(--gray-500);">預設：</span>${roleTags}
+                            </div>
                         </div>
                         <div class="employee-actions">
+                            <button class="btn btn-outline btn-sm" onclick="viewPersonalSchedule(${emp.id})">📅 班表</button>
                             <button class="btn btn-outline btn-sm" onclick="editEmployee(${emp.id})">✏️ 編輯</button>
                             <button class="btn btn-danger btn-sm" onclick="deleteEmployee(${emp.id})">🗑️</button>
                         </div>
@@ -1150,18 +1323,29 @@
                 `;
             }).join('');
 
-            // Update leave select
-            updateLeaveSelect();
+            // Update selects
+            updateEmployeeSelects();
         }
 
-        function updateLeaveSelect() {
-            const select = document.getElementById('leave-employee-select');
-            const currentValue = select.value;
-            select.innerHTML = employees.map(emp => 
+        function updateEmployeeSelects() {
+            const leaveSelect = document.getElementById('leave-employee-select');
+            const personalSelect = document.getElementById('personal-employee-select');
+            
+            const options = employees.map(emp => 
                 `<option value="${emp.id}">${emp.name}</option>`
             ).join('');
-            if (currentValue && employees.find(e => e.id === parseInt(currentValue))) {
-                select.value = currentValue;
+            
+            const currentLeave = leaveSelect.value;
+            const currentPersonal = personalSelect.value;
+            
+            leaveSelect.innerHTML = options;
+            personalSelect.innerHTML = options;
+            
+            if (currentLeave && employees.find(e => e.id === parseInt(currentLeave))) {
+                leaveSelect.value = currentLeave;
+            }
+            if (currentPersonal && employees.find(e => e.id === parseInt(currentPersonal))) {
+                personalSelect.value = currentPersonal;
             }
         }
 
@@ -1169,8 +1353,35 @@
             document.getElementById('employee-modal-title').textContent = '新增員工';
             document.getElementById('employee-name-input').value = '';
             document.getElementById('employee-edit-id').value = '';
+            // Reset role checkboxes - default to follow
+            document.getElementById('role-counter-input').checked = false;
+            document.getElementById('role-follow-input').checked = true;
+            updateRoleCheckboxStyle();
             openModal('employee-modal');
             document.getElementById('employee-name-input').focus();
+        }
+
+        function updateRoleCheckboxStyle() {
+            const counterInput = document.getElementById('role-counter-input');
+            const followInput = document.getElementById('role-follow-input');
+            const counterLabel = document.getElementById('role-counter-label');
+            const followLabel = document.getElementById('role-follow-label');
+            
+            if (counterInput.checked) {
+                counterLabel.style.borderColor = 'var(--counter)';
+                counterLabel.style.background = 'var(--counter-light)';
+            } else {
+                counterLabel.style.borderColor = 'var(--gray-200)';
+                counterLabel.style.background = 'var(--gray-50)';
+            }
+            
+            if (followInput.checked) {
+                followLabel.style.borderColor = 'var(--follow)';
+                followLabel.style.background = 'var(--follow-light)';
+            } else {
+                followLabel.style.borderColor = 'var(--gray-200)';
+                followLabel.style.background = 'var(--gray-50)';
+            }
         }
 
         function editEmployee(id) {
@@ -1180,6 +1391,13 @@
             document.getElementById('employee-modal-title').textContent = '編輯員工';
             document.getElementById('employee-name-input').value = emp.name;
             document.getElementById('employee-edit-id').value = id;
+            
+            // Set role checkboxes based on employee data
+            const roles = emp.roles || { counter: false, follow: false };
+            document.getElementById('role-counter-input').checked = roles.counter;
+            document.getElementById('role-follow-input').checked = roles.follow;
+            updateRoleCheckboxStyle();
+            
             openModal('employee-modal');
             document.getElementById('employee-name-input').focus();
         }
@@ -1187,29 +1405,31 @@
         function saveEmployee() {
             const name = document.getElementById('employee-name-input').value.trim();
             const editId = document.getElementById('employee-edit-id').value;
+            const counterRole = document.getElementById('role-counter-input').checked;
+            const followRole = document.getElementById('role-follow-input').checked;
 
             if (!name) {
                 showToast('請輸入員工姓名', 'error');
                 return;
             }
 
+            const roles = { counter: counterRole, follow: followRole };
+
             if (editId) {
                 const emp = employees.find(e => e.id === parseInt(editId));
                 if (emp) {
                     emp.name = name;
+                    emp.roles = roles;
                     showToast(`員工「${name}」已更新`);
                 }
             } else {
                 const maxId = employees.reduce((max, e) => Math.max(max, e.id), 0);
-                employees.push({ id: maxId + 1, name });
+                employees.push({ id: maxId + 1, name, roles });
                 showToast(`員工「${name}」已新增`);
             }
 
             closeModal('employee-modal');
-            renderEmployeeList();
-            renderSchedule();
-            renderStats();
-            renderLeaveCalendar();
+            renderAll();
         }
 
         function deleteEmployee(id) {
@@ -1230,10 +1450,13 @@
             });
 
             showToast(`員工「${emp.name}」已刪除`);
-            renderEmployeeList();
-            renderSchedule();
-            renderStats();
-            renderLeaveCalendar();
+            renderAll();
+        }
+
+        function viewPersonalSchedule(empId) {
+            document.getElementById('personal-employee-select').value = empId;
+            switchTab('personal');
+            renderPersonalSchedule();
         }
 
         // ===== LEAVE MANAGEMENT =====
@@ -1262,12 +1485,10 @@
                 <div class="leave-calendar-header">六</div>
             `;
 
-            // Empty cells before first day
             for (let i = 0; i < firstDay; i++) {
                 html += '<div class="leave-day empty"></div>';
             }
 
-            // Days
             for (let day = 1; day <= daysInMonth; day++) {
                 const dateStr = formatDate(day);
                 const sunday = isSunday(day);
@@ -1293,7 +1514,6 @@
 
             container.innerHTML = html;
 
-            // Update leave summary
             const summaryEl = document.getElementById('leave-summary');
             const leaveDays = empLeaves.length;
             summaryEl.innerHTML = `
@@ -1333,6 +1553,150 @@
             }
         }
 
+        // ===== PERSONAL SCHEDULE =====
+        function renderPersonalSchedule() {
+            const container = document.getElementById('personal-schedule-content');
+            const empId = parseInt(document.getElementById('personal-employee-select').value);
+            
+            if (!empId) {
+                container.innerHTML = '<p style="color: var(--gray-500);">請先選擇員工</p>';
+                return;
+            }
+
+            const emp = employees.find(e => e.id === empId);
+            if (!emp) return;
+
+            const daysInMonth = getDaysInMonth(YEAR, MONTH);
+            
+            // Calculate stats
+            let totalSessions = 0;
+            let counterCount = 0;
+            let followCount = 0;
+            let workDays = new Set();
+
+            // Build schedule data
+            const scheduleData = [];
+            
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = formatDate(day);
+                const sessions = getSessionsForDay(day);
+                const weekday = getWeekdayName(day);
+                
+                const dayData = {
+                    day,
+                    dateStr,
+                    weekday,
+                    sessions: []
+                };
+
+                if (sessions.length === 0) {
+                    dayData.isOff = true;
+                    dayData.offReason = isSunday(day) ? '週日' : '國定假日';
+                } else {
+                    sessions.forEach(session => {
+                        const key = `${dateStr}_${session}`;
+                        const cellData = schedule[key] || { counter: [], follow: [] };
+                        
+                        let role = null;
+                        if (cellData.counter.includes(empId)) {
+                            role = 'counter';
+                            counterCount++;
+                            totalSessions++;
+                            workDays.add(day);
+                        } else if (cellData.follow.includes(empId)) {
+                            role = 'follow';
+                            followCount++;
+                            totalSessions++;
+                            workDays.add(day);
+                        }
+                        
+                        dayData.sessions.push({
+                            session,
+                            sessionName: SESSION_NAMES[session],
+                            role
+                        });
+                    });
+                }
+                
+                scheduleData.push(dayData);
+            }
+
+            // Render
+            let html = `
+                <div class="personal-stats">
+                    <div class="personal-stat-item">
+                        <div class="personal-stat-value">${totalSessions}</div>
+                        <div class="personal-stat-label">本月總診數</div>
+                    </div>
+                    <div class="personal-stat-item">
+                        <div class="personal-stat-value">${counterCount}</div>
+                        <div class="personal-stat-label">櫃檯班</div>
+                    </div>
+                    <div class="personal-stat-item">
+                        <div class="personal-stat-value">${followCount}</div>
+                        <div class="personal-stat-label">跟診班</div>
+                    </div>
+                    <div class="personal-stat-item">
+                        <div class="personal-stat-value">${workDays.size}</div>
+                        <div class="personal-stat-label">出勤天數</div>
+                    </div>
+                    <div class="personal-stat-item">
+                        <div class="personal-stat-value" style="color: ${totalSessions >= TARGET_SESSIONS ? 'var(--success)' : 'var(--danger)'};">
+                            ${totalSessions >= TARGET_SESSIONS ? '✓' : TARGET_SESSIONS - totalSessions}
+                        </div>
+                        <div class="personal-stat-label">${totalSessions >= TARGET_SESSIONS ? '已達標' : '距目標'}</div>
+                    </div>
+                </div>
+
+                <table class="personal-schedule-table">
+                    <thead>
+                        <tr>
+                            <th>日期</th>
+                            <th>星期</th>
+                            <th>早診 09:30-12:30</th>
+                            <th>午診 14:00-17:30</th>
+                            <th>晚診 18:00-21:30</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            scheduleData.forEach(dayData => {
+                if (dayData.isOff) {
+                    html += `
+                        <tr class="off-day">
+                            <td>${MONTH}/${dayData.day}</td>
+                            <td>週${dayData.weekday}</td>
+                            <td colspan="3">${dayData.offReason} - 休診</td>
+                        </tr>
+                    `;
+                } else {
+                    const hasWork = dayData.sessions.some(s => s.role);
+                    html += `<tr class="${hasWork ? 'work-day' : ''}">
+                        <td>${MONTH}/${dayData.day}</td>
+                        <td>週${dayData.weekday}</td>
+                    `;
+                    
+                    ['morning', 'afternoon', 'evening'].forEach(sessionType => {
+                        const sessionData = dayData.sessions.find(s => s.session === sessionType);
+                        if (!sessionData) {
+                            html += `<td class="off-day">-</td>`;
+                        } else if (sessionData.role) {
+                            const roleText = sessionData.role === 'counter' ? '櫃檯' : '跟診';
+                            html += `<td><span class="role-badge ${sessionData.role}">${roleText}</span></td>`;
+                        } else {
+                            html += `<td>-</td>`;
+                        }
+                    });
+                    
+                    html += '</tr>';
+                }
+            });
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
         // ===== SCHEDULE =====
         function renderSchedule() {
             const table = document.getElementById('schedule-table');
@@ -1340,7 +1704,6 @@
 
             let html = '<thead><tr><th>時段</th>';
             
-            // Headers
             for (let day = 1; day <= daysInMonth; day++) {
                 const dateStr = formatDate(day);
                 const sunday = isSunday(day);
@@ -1362,7 +1725,6 @@
             }
             html += '</tr></thead><tbody>';
 
-            // Rows for each session
             SESSIONS.forEach(session => {
                 html += `<tr>
                     <td>
@@ -1396,7 +1758,6 @@
         function renderStaffTags(cellData) {
             let html = '';
             
-            // Counter
             cellData.counter.forEach(empId => {
                 const emp = employees.find(e => e.id === empId);
                 if (emp) {
@@ -1404,7 +1765,6 @@
                 }
             });
 
-            // Follow
             cellData.follow.forEach(empId => {
                 const emp = employees.find(e => e.id === empId);
                 if (emp) {
@@ -1412,7 +1772,6 @@
                 }
             });
 
-            // Vacancies
             const counterVacancy = Math.max(0, STAFF_PER_SESSION.counter - cellData.counter.length);
             const followVacancy = Math.max(0, STAFF_PER_SESSION.follow - cellData.follow.length);
 
@@ -1523,25 +1882,22 @@
                 schedule[key][role].push(empId);
             }
 
-            // Re-render the modal content
             editCell(key);
             renderSchedule();
             renderStats();
             renderEmployeeList();
         }
 
-        // ===== AUTO SCHEDULE =====
+        // ===== AUTO SCHEDULE (with role preferences) =====
         function autoSchedule() {
-            if (!confirm('確定要執行智能排班嗎？\n\n這將會：\n• 清除現有班表\n• 自動分配人力\n• 缺額優先安排在早診')) return;
+            if (!confirm('確定要執行智能排班嗎？\n\n這將會：\n• 清除現有班表\n• 依照員工預設職位優先分配\n• 缺額優先安排在早診')) return;
 
             showLoading();
 
-            // Use setTimeout to allow UI to update
             setTimeout(() => {
                 schedule = {};
                 const daysInMonth = getDaysInMonth(YEAR, MONTH);
 
-                // Calculate all available sessions
                 const allSessions = [];
                 for (let day = 1; day <= daysInMonth; day++) {
                     const dateStr = formatDate(day);
@@ -1550,77 +1906,271 @@
                     });
                 }
 
-                // Initialize schedule
                 allSessions.forEach(({ key }) => {
                     schedule[key] = { counter: [], follow: [] };
                 });
 
-                // Track employee session counts
                 const empCounts = {};
                 employees.forEach(emp => empCounts[emp.id] = 0);
 
-                // Sort sessions: prioritize afternoon/evening over morning (to leave vacancies in morning)
                 const sessionPriority = { evening: 0, afternoon: 1, morning: 2 };
                 const sortedSessions = [...allSessions].sort((a, b) => 
                     sessionPriority[a.session] - sessionPriority[b.session]
                 );
 
-                // First pass: assign staff evenly
                 sortedSessions.forEach(({ dateStr, session, key }) => {
-                    // Get available employees (not on leave, not at target, not already assigned today in same role)
-                    const getAvailable = () => {
+                    // Get available employees for a specific role
+                    const getAvailableForRole = (role) => {
                         return employees.filter(emp => {
                             const onLeave = (leaves[emp.id] || []).includes(dateStr);
                             const atTarget = empCounts[emp.id] >= TARGET_SESSIONS;
                             const alreadyAssigned = schedule[key].counter.includes(emp.id) || 
                                                    schedule[key].follow.includes(emp.id);
                             return !onLeave && !atTarget && !alreadyAssigned;
-                        }).map(emp => emp.id);
+                        }).map(emp => ({
+                            id: emp.id,
+                            preferred: emp.roles && emp.roles[role],
+                            count: empCounts[emp.id]
+                        }));
                     };
 
-                    // Sort by current count (lowest first for balance)
-                    let available = getAvailable();
-                    available.sort((a, b) => empCounts[a] - empCounts[b]);
+                    // Assign counter - prioritize employees with counter role
+                    let availableCounter = getAvailableForRole('counter');
+                    availableCounter.sort((a, b) => {
+                        if (a.preferred && !b.preferred) return -1;
+                        if (!a.preferred && b.preferred) return 1;
+                        return a.count - b.count;
+                    });
 
-                    // Assign counter (1 person)
-                    if (available.length > 0) {
-                        const counterId = available.shift();
+                    if (availableCounter.length > 0) {
+                        const counterId = availableCounter[0].id;
                         schedule[key].counter.push(counterId);
                         empCounts[counterId]++;
                     }
 
-                    // Refresh available list
-                    available = getAvailable();
-                    available.sort((a, b) => empCounts[a] - empCounts[b]);
+                    // Assign follow - prioritize employees with follow role
+                    for (let i = 0; i < STAFF_PER_SESSION.follow; i++) {
+                        let availableFollow = getAvailableForRole('follow');
+                        availableFollow.sort((a, b) => {
+                            if (a.preferred && !b.preferred) return -1;
+                            if (!a.preferred && b.preferred) return 1;
+                            return a.count - b.count;
+                        });
 
-                    // Assign follow (3 people)
-                    for (let i = 0; i < STAFF_PER_SESSION.follow && available.length > 0; i++) {
-                        const followId = available.shift();
-                        schedule[key].follow.push(followId);
-                        empCounts[followId]++;
+                        if (availableFollow.length > 0) {
+                            const followId = availableFollow[0].id;
+                            schedule[key].follow.push(followId);
+                            empCounts[followId]++;
+                        }
                     }
                 });
 
                 hideLoading();
-                renderSchedule();
-                renderStats();
-                renderEmployeeList();
+                renderAll();
 
-                // Calculate results
                 const totalAssigned = Object.values(empCounts).reduce((a, b) => a + b, 0);
                 const totalVacancy = 284 - totalAssigned;
 
-                showToast(`智能排班完成！已排 ${totalAssigned} 人次，缺額 ${totalVacancy} 人次（集中在早診）`, 'success');
+                showToast(`智能排班完成！已排 ${totalAssigned} 人次，缺額 ${totalVacancy} 人次`, 'success');
             }, 100);
         }
 
         function clearSchedule() {
             if (!confirm('確定要清除所有班表嗎？')) return;
             schedule = {};
-            renderSchedule();
-            renderStats();
-            renderEmployeeList();
+            renderAll();
             showToast('班表已清除');
+        }
+
+        // ===== EXCEL EXPORT =====
+        function exportToExcel() {
+            const daysInMonth = getDaysInMonth(YEAR, MONTH);
+            
+            // Create workbook
+            const wb = XLSX.utils.book_new();
+            
+            // Sheet 1: Full Schedule
+            const scheduleData = [];
+            
+            // Header row
+            const headerRow = ['時段'];
+            for (let day = 1; day <= daysInMonth; day++) {
+                headerRow.push(`${MONTH}/${day} 週${getWeekdayName(day)}`);
+            }
+            scheduleData.push(headerRow);
+            
+            // Data rows
+            SESSIONS.forEach(session => {
+                const row = [SESSION_NAMES[session]];
+                
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const dateStr = formatDate(day);
+                    const sessions = getSessionsForDay(day);
+                    const key = `${dateStr}_${session}`;
+                    
+                    if (!sessions.includes(session)) {
+                        row.push('休診');
+                    } else {
+                        const cellData = schedule[key] || { counter: [], follow: [] };
+                        const names = [];
+                        
+                        cellData.counter.forEach(empId => {
+                            const emp = employees.find(e => e.id === empId);
+                            if (emp) names.push(`[櫃]${emp.name}`);
+                        });
+                        
+                        cellData.follow.forEach(empId => {
+                            const emp = employees.find(e => e.id === empId);
+                            if (emp) names.push(emp.name);
+                        });
+                        
+                        row.push(names.length > 0 ? names.join('\n') : '缺人');
+                    }
+                }
+                scheduleData.push(row);
+            });
+            
+            const ws1 = XLSX.utils.aoa_to_sheet(scheduleData);
+            
+            // Set column widths
+            ws1['!cols'] = [{ wch: 15 }];
+            for (let i = 0; i < daysInMonth; i++) {
+                ws1['!cols'].push({ wch: 15 });
+            }
+            
+            XLSX.utils.book_append_sheet(wb, ws1, '完整班表');
+            
+            // Sheet 2: Statistics
+            const statsData = [
+                ['員工姓名', '總診數', '櫃檯班', '跟診班', '目標', '狀態']
+            ];
+            
+            employees.forEach(emp => {
+                let counter = 0, follow = 0;
+                Object.values(schedule).forEach(cell => {
+                    if (cell && cell.counter && cell.counter.includes(emp.id)) counter++;
+                    if (cell && cell.follow && cell.follow.includes(emp.id)) follow++;
+                });
+                const total = counter + follow;
+                const status = total >= TARGET_SESSIONS ? '已達標' : `差${TARGET_SESSIONS - total}診`;
+                statsData.push([emp.name, total, counter, follow, TARGET_SESSIONS, status]);
+            });
+            
+            const ws2 = XLSX.utils.aoa_to_sheet(statsData);
+            ws2['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 8 }, { wch: 12 }];
+            XLSX.utils.book_append_sheet(wb, ws2, '統計報表');
+            
+            // Download
+            XLSX.writeFile(wb, `牙醫診所班表_${YEAR}年${MONTH}月.xlsx`);
+            showToast('Excel 已匯出！');
+        }
+
+        function exportPersonalExcel() {
+            const empId = parseInt(document.getElementById('personal-employee-select').value);
+            const emp = employees.find(e => e.id === empId);
+            if (!emp) return;
+
+            const daysInMonth = getDaysInMonth(YEAR, MONTH);
+            const wb = XLSX.utils.book_new();
+            
+            const data = [
+                [`${emp.name} - ${YEAR}年${MONTH}月 個人班表`],
+                [],
+                ['日期', '星期', '早診', '午診', '晚診']
+            ];
+            
+            let totalSessions = 0;
+            
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = formatDate(day);
+                const sessions = getSessionsForDay(day);
+                const weekday = `週${getWeekdayName(day)}`;
+                
+                if (sessions.length === 0) {
+                    data.push([`${MONTH}/${day}`, weekday, '休診', '休診', '休診']);
+                } else {
+                    const row = [`${MONTH}/${day}`, weekday];
+                    
+                    ['morning', 'afternoon', 'evening'].forEach(session => {
+                        if (!sessions.includes(session)) {
+                            row.push('休診');
+                        } else {
+                            const key = `${dateStr}_${session}`;
+                            const cellData = schedule[key] || { counter: [], follow: [] };
+                            
+                            if (cellData.counter.includes(empId)) {
+                                row.push('櫃檯');
+                                totalSessions++;
+                            } else if (cellData.follow.includes(empId)) {
+                                row.push('跟診');
+                                totalSessions++;
+                            } else {
+                                row.push('-');
+                            }
+                        }
+                    });
+                    
+                    data.push(row);
+                }
+            }
+            
+            data.push([]);
+            data.push(['本月總診數', totalSessions, '', '目標', TARGET_SESSIONS]);
+            
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            ws['!cols'] = [{ wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 10 }];
+            ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }];
+            
+            XLSX.utils.book_append_sheet(wb, ws, '個人班表');
+            XLSX.writeFile(wb, `${emp.name}_班表_${YEAR}年${MONTH}月.xlsx`);
+            showToast(`${emp.name} 的班表已匯出！`);
+        }
+
+        function exportStatsExcel() {
+            const wb = XLSX.utils.book_new();
+            
+            const data = [
+                [`${YEAR}年${MONTH}月 員工排班統計`],
+                [],
+                ['員工姓名', '總診數', '櫃檯班', '跟診班', '目標診數', '達標狀態', '出勤天數']
+            ];
+            
+            employees.forEach(emp => {
+                let counter = 0, follow = 0;
+                const workDays = new Set();
+                
+                Object.entries(schedule).forEach(([key, cell]) => {
+                    if (cell) {
+                        const dateStr = key.split('_')[0];
+                        if (cell.counter && cell.counter.includes(emp.id)) {
+                            counter++;
+                            workDays.add(dateStr);
+                        }
+                        if (cell.follow && cell.follow.includes(emp.id)) {
+                            follow++;
+                            workDays.add(dateStr);
+                        }
+                    }
+                });
+                
+                const total = counter + follow;
+                const status = total >= TARGET_SESSIONS ? '✓ 已達標' : `差 ${TARGET_SESSIONS - total} 診`;
+                data.push([emp.name, total, counter, follow, TARGET_SESSIONS, status, workDays.size]);
+            });
+            
+            const totalAssigned = employees.reduce((sum, emp) => sum + countEmployeeSessions(emp.id), 0);
+            data.push([]);
+            data.push(['總計', totalAssigned, '', '', '', '', '']);
+            data.push(['需求人次', 284]);
+            data.push(['缺額人次', 284 - totalAssigned]);
+            
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            ws['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 10 }];
+            ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 6 } }];
+            
+            XLSX.utils.book_append_sheet(wb, ws, '統計報表');
+            XLSX.writeFile(wb, `排班統計_${YEAR}年${MONTH}月.xlsx`);
+            showToast('統計報表已匯出！');
         }
 
         // ===== STATS =====
@@ -1661,7 +2211,6 @@
                 `;
             }).join('');
 
-            // Update summary
             const totalAssigned = employees.reduce((sum, emp) => sum + countEmployeeSessions(emp.id), 0);
             document.getElementById('total-assigned').textContent = totalAssigned;
             document.getElementById('total-vacancy').textContent = Math.max(0, 284 - totalAssigned);
@@ -1678,7 +2227,6 @@
             document.body.style.overflow = '';
         }
 
-        // Close modal on overlay click
         document.querySelectorAll('.modal-overlay').forEach(overlay => {
             overlay.addEventListener('click', (e) => {
                 if (e.target === overlay) {
@@ -1688,7 +2236,6 @@
             });
         });
 
-        // Close modal on Escape key
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 document.querySelectorAll('.modal-overlay.active').forEach(modal => {
@@ -1709,21 +2256,24 @@
             if (tabName === 'leave') renderLeaveCalendar();
             if (tabName === 'stats') renderStats();
             if (tabName === 'employees') renderEmployeeList();
+            if (tabName === 'personal') renderPersonalSchedule();
         }
 
-        // ===== INIT =====
-        function init() {
+        // ===== RENDER ALL =====
+        function renderAll() {
             renderEmployeeList();
             renderSchedule();
             renderStats();
             renderLeaveCalendar();
-            
-            console.log('牙醫診所排班系統已載入');
-            console.log('員工人數:', employees.length);
-            console.log('目標診數:', TARGET_SESSIONS);
+            renderPersonalSchedule();
         }
 
-        // Enter key to save employee
+        // ===== INIT =====
+        function init() {
+            renderAll();
+            console.log('牙醫診所排班系統 V4 已載入');
+        }
+
         document.getElementById('employee-name-input').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 saveEmployee();
